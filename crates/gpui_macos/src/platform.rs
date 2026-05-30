@@ -66,18 +66,10 @@ use util::{
 const NSUTF8StringEncoding: NSUInteger = 4;
 
 const MAC_PLATFORM_IVAR: &str = "platform";
-static mut APP_CLASS: *const Class = ptr::null();
 static mut APP_DELEGATE_CLASS: *const Class = ptr::null();
 
 #[ctor(unsafe)]
 unsafe fn build_classes() {
-    unsafe {
-        APP_CLASS = {
-            let mut decl = ClassDecl::new("GPUIApplication", class!(NSApplication)).unwrap();
-            decl.add_ivar::<*mut c_void>(MAC_PLATFORM_IVAR);
-            decl.register()
-        }
-    };
     unsafe {
         APP_DELEGATE_CLASS = {
             let mut decl = ClassDecl::new("GPUIApplicationDelegate", class!(NSResponder)).unwrap();
@@ -256,7 +248,7 @@ impl MacPlatform {
                 application_menu.addItem_(menu_item);
 
                 if menu_config.name == "Window" {
-                    let app: id = msg_send![APP_CLASS, sharedApplication];
+                    let app: id = NSApplication::sharedApplication(nil);
                     app.setWindowsMenu_(menu);
                 }
             }
@@ -434,7 +426,7 @@ impl MacPlatform {
 
                     match menu_type {
                         SystemMenuType::Services => {
-                            let app: id = msg_send![APP_CLASS, sharedApplication];
+                            let app: id = NSApplication::sharedApplication(nil);
                             app.setServicesMenu_(item);
                         }
                     }
@@ -483,19 +475,17 @@ impl Platform for MacPlatform {
         }
 
         unsafe {
-            let app: id = msg_send![APP_CLASS, sharedApplication];
+            let app: id = NSApplication::sharedApplication(nil);
             let app_delegate: id = msg_send![APP_DELEGATE_CLASS, new];
             app.setDelegate_(app_delegate);
 
             let self_ptr = self as *const Self as *const c_void;
-            (*app).set_ivar(MAC_PLATFORM_IVAR, self_ptr);
             (*app_delegate).set_ivar(MAC_PLATFORM_IVAR, self_ptr);
 
             let pool = NSAutoreleasePool::new(nil);
             app.run();
             pool.drain();
 
-            (*app).set_ivar(MAC_PLATFORM_IVAR, null_mut::<c_void>());
             (*NSWindow::delegate(app)).set_ivar(MAC_PLATFORM_IVAR, null_mut::<c_void>());
         }
     }
@@ -946,7 +936,7 @@ impl Platform for MacPlatform {
 
     fn set_menus(&self, menus: Vec<Menu>, keymap: &Keymap) {
         unsafe {
-            let app: id = msg_send![APP_CLASS, sharedApplication];
+            let app: id = NSApplication::sharedApplication(nil);
             let mut state = self.0.lock();
             let actions = &mut state.menu_actions;
             let menu = self.create_menu_bar(&menus, NSWindow::delegate(app), actions, keymap);
@@ -962,7 +952,7 @@ impl Platform for MacPlatform {
 
     fn set_dock_menu(&self, menu: Vec<MenuItem>, keymap: &Keymap) {
         unsafe {
-            let app: id = msg_send![APP_CLASS, sharedApplication];
+            let app: id = NSApplication::sharedApplication(nil);
             let mut state = self.0.lock();
             let actions = &mut state.menu_actions;
             let new = self.create_dock_menu(menu, NSWindow::delegate(app), actions, keymap);
@@ -1186,7 +1176,7 @@ extern "C" fn will_finish_launching(_this: &mut Object, _: Sel, _: id) {
 
 extern "C" fn did_finish_launching(this: &mut Object, _: Sel, _: id) {
     unsafe {
-        let app: id = msg_send![APP_CLASS, sharedApplication];
+        let app: id = NSApplication::sharedApplication(nil);
         app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
 
         let notification_center: *mut Object =
