@@ -34,7 +34,7 @@ use hdrhistogram::Histogram;
 use itertools::FoldWhile::{Continue, Done};
 use itertools::Itertools;
 use parking_lot::RwLock;
-use raw_window_handle::{HandleError, HasDisplayHandle, HasWindowHandle};
+use raw_window_handle::{HandleError, HasDisplayHandle, HasWindowHandle, RawWindowHandle};
 use refineable::Refineable;
 use scheduler::Instant;
 use slotmap::SlotMap;
@@ -2245,6 +2245,16 @@ impl Window {
     /// Returns the size of the drawable area within the window.
     pub fn viewport_size(&self) -> Size<Pixels> {
         self.viewport_size
+    }
+
+    /// Returns the underlying NSView pointer for this window on macOS.
+    /// Intended for embedding native child views (e.g. a CEF browser) into the window.
+    #[cfg(target_os = "macos")]
+    pub fn ns_view(&self) -> Option<std::ptr::NonNull<std::ffi::c_void>> {
+        match self.platform_window.window_handle().ok()?.as_raw() {
+            RawWindowHandle::AppKit(handle) => Some(handle.ns_view.cast()),
+            _ => None,
+        }
     }
 
     /// Returns whether this window is focused by the operating system (receiving key events).
